@@ -7,6 +7,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, '../data');
 const WORKBOOKS_FILE = path.join(DATA_DIR, 'workbooks.json');
 
+// 确保数据目录存在
+if (!fs.existsSync(DATA_DIR)) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
 function readWorkbooks() {
   if (!fs.existsSync(WORKBOOKS_FILE)) {
     return [];
