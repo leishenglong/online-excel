@@ -11,26 +11,28 @@
   "dependencies": {
     "@univerjs/core": "^0.22.0",
     "@univerjs/design": "^0.22.0",
-    "@univerjs/engine-render": "^0.22.0",
-    "@univerjs/engine-formula": "^0.22.0",
-    "@univerjs/ui": "^0.22.0",
     "@univerjs/docs": "^0.22.0",
     "@univerjs/docs-ui": "^0.22.0",
+    "@univerjs/engine-formula": "^0.22.0",
+    "@univerjs/engine-render": "^0.22.0",
+    "@univerjs/preset-sheets-core": "^0.22.1",
+    "@univerjs/presets": "^0.22.1",
     "@univerjs/sheets": "^0.22.0",
-    "@univerjs/sheets-ui": "^0.22.0",
     "@univerjs/sheets-formula": "^0.22.0",
     "@univerjs/sheets-formula-ui": "^0.22.0",
     "@univerjs/sheets-numfmt": "^0.22.0",
     "@univerjs/sheets-numfmt-ui": "^0.22.0",
+    "@univerjs/sheets-ui": "^0.22.0",
+    "@univerjs/ui": "^0.22.0",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
-    "vite": "^5.0.0",
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "vite": "^5.0.0"
   }
 }

@@ -31,18 +31,46 @@ export function getWorkbook(id) {
 
 export function createWorkbook(name = '未命名表格') {
   const workbooks = getAllWorkbooks();
+  const sheetId = uuidv4();
   const newWorkbook = {
     id: uuidv4(),
     name,
-    sheets: [{
-      id: uuidv4(),
-      name: 'Sheet1',
-      data: {
-        cellData: {},
+    sheetIds: [sheetId],
+    sheetData: {
+      [sheetId]: {
+        id: sheetId,
+        name: 'Sheet1',
+        tabColor: '',
+        hidden: 0,
+        freeze: { x: 0, y: 1 },
         rowCount: 100,
-        columnCount: 26
+        columnCount: 26,
+        zoomRatio: 1,
+        scrollTop: 0,
+        scrollLeft: 0,
+        defaultColumnWidth: 73,
+        defaultRowHeight: 19,
+        mergeData: [],
+        cellData: {
+          '0': {
+            '0': { v: 'A1', m: 'A1', t: 2 },
+            '1': { v: 'B1', m: 'B1', t: 2 },
+            '2': { v: 'C1', m: 'C1', t: 2 }
+          },
+          '1': {
+            '0': { v: 'A2', m: 'A2', t: 2 },
+            '1': { v: 'B2', m: 'B2', t: 2 },
+            '2': { v: 'C2', m: 'C2', t: 2 }
+          }
+        },
+        rowData: [],
+        columnData: [],
+        rowHeader: { width: 46, hidden: 0 },
+        columnHeader: { height: 20, hidden: 0 },
+        showGridlines: 1,
+        gridlinesColor: ''
       }
-    }],
+    },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
@@ -57,12 +85,18 @@ export function updateWorkbook(id, updates) {
   if (index === -1) {
     return null;
   }
-  workbooks[index] = {
-    ...workbooks[index],
-    ...updates,
-    id,
+
+  // Use new sheetData format completely
+  const newData = {
+    id: updates.id || workbooks[index].id,
+    name: updates.name || workbooks[index].name,
+    sheetIds: updates.sheetIds || [],
+    sheetData: updates.sheetData || {},
+    createdAt: workbooks[index].createdAt,
     updatedAt: new Date().toISOString()
   };
+
+  workbooks[index] = newData;
   writeWorkbooks(workbooks);
   return workbooks[index];
 }

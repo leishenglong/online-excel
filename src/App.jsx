@@ -1,14 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LocaleType, mergeLocales, Univer, UniverInstanceType } from '@univerjs/core';
-import { UniverRenderEnginePlugin } from '@univerjs/engine-render';
-import { UniverFormulaEnginePlugin } from '@univerjs/engine-formula';
-import { UniverUIPlugin } from '@univerjs/ui';
-import { UniverSheetsPlugin } from '@univerjs/sheets';
-import { UniverSheetsUIPlugin } from '@univerjs/sheets-ui';
+import { createUniver, LocaleType, mergeLocales } from '@univerjs/presets';
+import { UniverSheetsCorePreset } from '@univerjs/preset-sheets-core';
+import sheetsCoreEnUS from '@univerjs/preset-sheets-core/locales/en-US';
 
-import '@univerjs/design/lib/index.css';
-import '@univerjs/ui/lib/index.css';
-import '@univerjs/sheets-ui/lib/index.css';
+import '@univerjs/preset-sheets-core/lib/index.css';
 
 function UniverSheet({ workbook, onClose }) {
   const containerRef = useRef(null);
@@ -17,28 +12,32 @@ function UniverSheet({ workbook, onClose }) {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const univer = new Univer({
+    const { univerAPI } = createUniver({
       locale: LocaleType.EN_US,
       locales: {
-        [LocaleType.EN_US]: mergeLocales(),
+        [LocaleType.EN_US]: mergeLocales([sheetsCoreEnUS]),
       },
+      presets: [
+        UniverSheetsCorePreset({
+          container: containerRef.current,
+        }),
+      ],
     });
 
-    univer.registerPlugin(UniverRenderEnginePlugin);
-    univer.registerPlugin(UniverFormulaEnginePlugin);
-    univer.registerPlugin(UniverUIPlugin, {
-      container: containerRef.current,
-    });
-    univer.registerPlugin(UniverSheetsPlugin);
-    univer.registerPlugin(UniverSheetsUIPlugin);
-
-    univer.createUnit(UniverInstanceType.UNIVER_SHEET, {
+    univerAPI.createWorkbook({
       id: workbook.id,
       name: workbook.name,
-      sheets: workbook.sheets,
+      sheets: workbook.sheetData,
+      sheetOrder: workbook.sheetIds,
     });
 
-    univerRef.current = univer;
+    // 确保网格线显示
+    const sheet = univerAPI.getActiveWorkbook()?.getActiveSheet();
+    if (sheet) {
+      sheet.setHiddenGridlines(false);
+    }
+
+    univerRef.current = univerAPI;
 
     return () => {
       if (univerRef.current) {
@@ -50,14 +49,79 @@ function UniverSheet({ workbook, onClose }) {
 
   const handleSave = async () => {
     try {
-      await fetch(`/api/workbooks/${workbook.id}`, {
+      const fWorkbook = univerRef.current?.getActiveWorkbook();
+      if (!fWorkbook) {
+        alert('No active workbook!');
+        return;
+      }
+
+      // Get all sheets
+      const sheets = fWorkbook.getSheets();
+      const sheetIds = [];
+      const sheetData = {};
+
+      for (const sheet of sheets) {
+        const sheetId = sheet.getSheetId();
+        const sheetName = sheet.getSheetName();
+        sheetIds.push(sheetId);
+
+        // Access internal worksheet
+        const worksheet = sheet._worksheet;
+        const snapshot = worksheet.getSnapshot();
+
+        sheetData[sheetId] = {
+          id: sheetId,
+          name: sheetName,
+          tabColor: '',
+          hidden: 0,
+          freeze: { x: 0, y: 0 },
+          rowCount: 100,
+          columnCount: 26,
+          zoomRatio: 1,
+          scrollTop: 0,
+          scrollLeft: 0,
+          defaultColumnWidth: 73,
+          defaultRowHeight: 19,
+          mergeData: [],
+          cellData: snapshot.cellData || {},
+          rowData: [],
+          columnData: [],
+          rowHeader: { width: 46, hidden: 0 },
+          columnHeader: { height: 20, hidden: 0 },
+          showGridlines: 1,
+          gridlinesColor: ''
+        };
+      }
+
+      // Convert sheetData format to what Workbook expects
+      const sheetsMap = {};
+      const sheetOrder = [];
+      for (const sheetId of sheetIds) {
+        sheetsMap[sheetId] = sheetData[sheetId];
+        sheetOrder.push(sheetId);
+      }
+
+      const updatedWorkbook = {
+        id: workbook.id,
+        name: workbook.name,
+        sheetIds,
+        sheetData
+      };
+
+      const res = await fetch(`/api/workbooks/${workbook.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(workbook),
+        body: JSON.stringify(updatedWorkbook),
       });
-      alert('Workbook saved!');
+
+      if (res.ok) {
+        alert('Saved successfully!');
+      } else {
+        alert('Save failed!');
+      }
     } catch (err) {
       console.error('Save failed:', err);
+      alert('Save failed!');
     }
   };
 
@@ -67,7 +131,7 @@ function UniverSheet({ workbook, onClose }) {
         <button onClick={handleSave} style={buttonStyle}>Save</button>
         <button onClick={onClose} style={buttonStyle}>Close</button>
       </div>
-      <div ref={containerRef} style={{ flex: 1 }} />
+      <div ref={containerRef} style={{ flex: 1, height: '100%', minHeight: '500px' }} />
     </div>
   );
 }
@@ -81,7 +145,14 @@ const buttonStyle = {
   cursor: 'pointer',
 };
 
-function WorkbookCard({ workbook, onSelect }) {
+function WorkbookCard({ workbook, onSelect, onDelete }) {
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    if (confirm(`确定要删除 "${workbook.name}" 吗？`)) {
+      onDelete(workbook.id);
+    }
+  };
+
   return (
     <div
       style={{
@@ -97,9 +168,23 @@ function WorkbookCard({ workbook, onSelect }) {
       onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
     >
       <h3 style={{ margin: '0 0 8px 0', fontSize: '16px' }}>{workbook.name}</h3>
-      <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
+      <p style={{ margin: '0 0 12px 0', color: '#666', fontSize: '14px' }}>
         {workbook.sheets?.length || 0} sheet(s)
       </p>
+      <button
+        onClick={handleDelete}
+        style={{
+          padding: '4px 12px',
+          background: '#dc3545',
+          color: '#fff',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          fontSize: '12px',
+        }}
+      >
+        删除
+      </button>
     </div>
   );
 }
@@ -131,7 +216,6 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: `Workbook ${workbooks.length + 1}`,
-          sheets: [{ id: 'sheet-1', name: 'Sheet1', data: {} }],
         }),
       });
       const newWorkbook = await res.json();
@@ -146,6 +230,18 @@ function App() {
 
   const handleSelectWorkbook = (workbook) => {
     setSelectedWorkbook(workbook);
+  };
+
+  const handleDeleteWorkbook = async (id) => {
+    try {
+      await fetch(`/api/workbooks/${id}`, { method: 'DELETE' });
+      setWorkbooks(prev => prev.filter(wb => wb.id !== id));
+      if (selectedWorkbook?.id === id) {
+        setSelectedWorkbook(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete workbook:', err);
+    }
   };
 
   const handleCloseWorkbook = () => {
@@ -190,7 +286,7 @@ function App() {
         )}
       </header>
 
-      <main style={{ flex: 1, padding: '24px', overflow: 'auto', background: '#f0f2f5' }}>
+      <main style={{ flex: 1, height: '0', padding: '24px', overflow: 'auto', background: '#f0f2f5' }}>
         {selectedWorkbook ? (
           <UniverSheet workbook={selectedWorkbook} onClose={handleCloseWorkbook} />
         ) : (
@@ -201,7 +297,7 @@ function App() {
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
                 {workbooks.map(wb => (
-                  <WorkbookCard key={wb.id} workbook={wb} onSelect={handleSelectWorkbook} />
+                  <WorkbookCard key={wb.id} workbook={wb} onSelect={handleSelectWorkbook} onDelete={handleDeleteWorkbook} />
                 ))}
               </div>
             )}
